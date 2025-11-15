@@ -28,6 +28,45 @@
             cursor: pointer;
             border: none;
         }
+        .fullscreen-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: black;
+            z-index: 9999;
+        }
+        .fullscreen-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .video-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .progress-bar {
+            flex: 1;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            cursor: pointer;
+            position: relative;
+        }
+        .progress-filled {
+            height: 100%;
+            background: #8b5cf6;
+            border-radius: 2px;
+            transition: width 0.1s;
+        }
     </style>
 </head>
 <body>
@@ -36,7 +75,7 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
-        // Lucide React icons as components
+        // Icons
         const Music = () => (
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
@@ -67,18 +106,34 @@
             </svg>
         );
 
+        const Maximize = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+        );
+
+        const Minimize = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+            </svg>
+        );
+
         function AudioVibrationApp() {
             const [isPlaying, setIsPlaying] = useState(false);
             const [sensitivity, setSensitivity] = useState(50);
             const [file, setFile] = useState(null);
             const [fileName, setFileName] = useState('');
             const [error, setError] = useState('');
+            const [isFullscreen, setIsFullscreen] = useState(false);
+            const [progress, setProgress] = useState(0);
+            const [isVideo, setIsVideo] = useState(false);
             
-            const audioRef = useRef(null);
+            const mediaRef = useRef(null);
             const audioContextRef = useRef(null);
             const analyserRef = useRef(null);
             const animationRef = useRef(null);
             const sourceRef = useRef(null);
+            const vibrationIntervalRef = useRef(null);
 
             useEffect(() => {
                 if (!navigator.vibrate) {
@@ -97,11 +152,12 @@
                     if (fileType.startsWith('audio/') || fileType.startsWith('video/')) {
                         setFile(selectedFile);
                         setFileName(selectedFile.name);
+                        setIsVideo(fileType.startsWith('video/'));
                         setError('');
                         
                         const url = URL.createObjectURL(selectedFile);
-                        if (audioRef.current) {
-                            audioRef.current.src = url;
+                        if (mediaRef.current) {
+                            mediaRef.current.src = url;
                         }
                     } else {
                         setError('Please select an audio or video file');
@@ -110,30 +166,57 @@
             };
 
             const initAudioContext = () => {
-                if (!audioContextRef.current) {
-                    audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-                    analyserRef.current = audioContextRef.current.createAnalyser();
-                    analyserRef.current.fftSize = 256;
-                    
-                    sourceRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
-                    sourceRef.current.connect(analyserRef.current);
-                    analyserRef.current.connect(audioContextRef.current.destination);
+                if (!audioContextRef.current && mediaRef.current) {
+                    try {
+                        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                        analyserRef.current = audioContextRef.current.createAnalyser();
+                        analyserRef.current.fftSize = 512;
+                        analyserRef.current.smoothingTimeConstant = 0.8;
+                        
+                        sourceRef.current = audioContextRef.current.createMediaElementSource(mediaRef.current);
+                        sourceRef.current.connect(analyserRef.current);
+                        analyserRef.current.connect(audioContextRef.current.destination);
+                    } catch (err) {
+                        console.error('Audio context error:', err);
+                    }
                 }
             };
 
             const analyzeAudio = () => {
-                const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+                const bufferLength = analyserRef.current.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
                 
                 const analyze = () => {
                     if (!isPlaying) return;
                     
                     analyserRef.current.getByteFrequencyData(dataArray);
-                    const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-                    const threshold = (100 - sensitivity) * 2.55;
                     
-                    if (average > threshold) {
-                        const intensity = Math.min(Math.floor((average / 255) * 200), 200);
-                        navigator.vibrate(intensity);
+                    // Focus on bass frequencies (0-250Hz roughly first 32 bins)
+                    let bassSum = 0;
+                    let midSum = 0;
+                    
+                    for (let i = 0; i < 32; i++) {
+                        bassSum += dataArray[i];
+                    }
+                    for (let i = 32; i < 96; i++) {
+                        midSum += dataArray[i];
+                    }
+                    
+                    const bassAvg = bassSum / 32;
+                    const midAvg = midSum / 64;
+                    const combined = (bassAvg * 0.7 + midAvg * 0.3);
+                    
+                    // Adjust threshold based on sensitivity
+                    const threshold = (100 - sensitivity) * 1.5;
+                    
+                    if (combined > threshold) {
+                        // Map to vibration intensity (10-200ms)
+                        const intensity = Math.max(10, Math.min(Math.floor((combined / 255) * 200), 200));
+                        try {
+                            navigator.vibrate(intensity);
+                        } catch (e) {
+                            console.error('Vibration error:', e);
+                        }
                     }
                     
                     animationRef.current = requestAnimationFrame(analyze);
@@ -156,30 +239,144 @@
                             initAudioContext();
                         }
                         
-                        if (audioContextRef.current.state === 'suspended') {
+                        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
                             await audioContextRef.current.resume();
                         }
                         
-                        await audioRef.current.play();
+                        await mediaRef.current.play();
                         setIsPlaying(true);
-                        analyzeAudio();
+                        
+                        if (analyserRef.current) {
+                            analyzeAudio();
+                        }
+                        
                         setError('');
                     } catch (err) {
                         setError('Error playing file: ' + err.message);
+                        console.error('Playback error:', err);
                     }
                 }
             };
 
             const stopPlayback = () => {
-                if (audioRef.current) {
-                    audioRef.current.pause();
+                if (mediaRef.current) {
+                    mediaRef.current.pause();
                 }
                 if (animationRef.current) {
                     cancelAnimationFrame(animationRef.current);
                 }
-                navigator.vibrate(0);
+                if (vibrationIntervalRef.current) {
+                    clearInterval(vibrationIntervalRef.current);
+                }
+                try {
+                    navigator.vibrate(0);
+                } catch (e) {}
                 setIsPlaying(false);
             };
+
+            const toggleFullscreen = async () => {
+                if (!isFullscreen) {
+                    try {
+                        if (document.documentElement.requestFullscreen) {
+                            await document.documentElement.requestFullscreen();
+                        } else if (document.documentElement.webkitRequestFullscreen) {
+                            await document.documentElement.webkitRequestFullscreen();
+                        }
+                        
+                        if (screen.orientation && screen.orientation.lock) {
+                            try {
+                                await screen.orientation.lock('landscape');
+                            } catch (e) {
+                                console.log('Orientation lock not supported');
+                            }
+                        }
+                        
+                        setIsFullscreen(true);
+                    } catch (err) {
+                        console.error('Fullscreen error:', err);
+                    }
+                } else {
+                    try {
+                        if (document.exitFullscreen) {
+                            await document.exitFullscreen();
+                        } else if (document.webkitExitFullscreen) {
+                            await document.webkitExitFullscreen();
+                        }
+                        
+                        if (screen.orientation && screen.orientation.unlock) {
+                            screen.orientation.unlock();
+                        }
+                        
+                        setIsFullscreen(false);
+                    } catch (err) {
+                        console.error('Exit fullscreen error:', err);
+                    }
+                }
+            };
+
+            useEffect(() => {
+                const handleFullscreenChange = () => {
+                    const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+                    setIsFullscreen(isCurrentlyFullscreen);
+                };
+
+                document.addEventListener('fullscreenchange', handleFullscreenChange);
+                document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+                return () => {
+                    document.removeEventListener('fullscreenchange', handleFullscreenChange);
+                    document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+                };
+            }, []);
+
+            useEffect(() => {
+                const updateProgress = () => {
+                    if (mediaRef.current && mediaRef.current.duration) {
+                        setProgress((mediaRef.current.currentTime / mediaRef.current.duration) * 100);
+                    }
+                };
+
+                const interval = setInterval(updateProgress, 100);
+                return () => clearInterval(interval);
+            }, [isPlaying]);
+
+            const handleProgressClick = (e) => {
+                if (mediaRef.current && mediaRef.current.duration) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const pos = (e.clientX - rect.left) / rect.width;
+                    mediaRef.current.currentTime = pos * mediaRef.current.duration;
+                }
+            };
+
+            if (isFullscreen && isVideo) {
+                return (
+                    <div className="fullscreen-video">
+                        <video 
+                            ref={mediaRef}
+                            controls={false}
+                            playsInline
+                            onClick={togglePlayback}
+                        />
+                        <div className="video-controls">
+                            <button 
+                                onClick={togglePlayback}
+                                className="text-white p-2 hover:bg-white/20 rounded"
+                            >
+                                {isPlaying ? <Pause /> : <Play />}
+                            </button>
+                            <div className="progress-bar" onClick={handleProgressClick}>
+                                <div className="progress-filled" style={{width: `${progress}%`}} />
+                            </div>
+                            <button 
+                                onClick={toggleFullscreen}
+                                className="text-white p-2 hover:bg-white/20 rounded"
+                            >
+                                <Minimize />
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
 
             return (
                 <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
@@ -223,6 +420,21 @@
                                 </label>
                             </div>
 
+                            {isVideo && file && (
+                                <div className="bg-black rounded-xl overflow-hidden">
+                                    <video 
+                                        ref={mediaRef}
+                                        className="w-full"
+                                        controls={false}
+                                        playsInline
+                                    />
+                                </div>
+                            )}
+
+                            {!isVideo && file && (
+                                <audio ref={mediaRef} className="hidden" />
+                            )}
+
                             <div>
                                 <label className="flex items-center gap-2 text-sm font-medium mb-2">
                                     <Settings />
@@ -245,27 +457,38 @@
                                 </div>
                             </div>
 
-                            <button
-                                onClick={togglePlayback}
-                                disabled={!file}
-                                className={`w-full py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all ${
-                                    file
-                                        ? 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg'
-                                        : 'bg-white/10 cursor-not-allowed opacity-50'
-                                }`}
-                            >
-                                {isPlaying ? (
-                                    <>
-                                        <Pause />
-                                        Stop
-                                    </>
-                                ) : (
-                                    <>
-                                        <Play />
-                                        Play & Vibrate
-                                    </>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={togglePlayback}
+                                    disabled={!file}
+                                    className={`flex-1 py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all ${
+                                        file
+                                            ? 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg'
+                                            : 'bg-white/10 cursor-not-allowed opacity-50'
+                                    }`}
+                                >
+                                    {isPlaying ? (
+                                        <>
+                                            <Pause />
+                                            Stop
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play />
+                                            Play
+                                        </>
+                                    )}
+                                </button>
+
+                                {isVideo && file && (
+                                    <button
+                                        onClick={toggleFullscreen}
+                                        className="py-4 px-6 rounded-xl font-semibold bg-white/20 hover:bg-white/30 transition-all"
+                                    >
+                                        <Maximize />
+                                    </button>
                                 )}
-                            </button>
+                            </div>
 
                             {isPlaying && (
                                 <div className="bg-white/10 rounded-xl p-4 text-center">
@@ -273,11 +496,10 @@
                                         <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
                                     </div>
                                     <p className="text-sm">Playing... Your phone should vibrate with the audio</p>
+                                    <p className="text-xs text-white/60 mt-1">Make sure your phone is not on silent mode</p>
                                 </div>
                             )}
                         </div>
-
-                        <audio ref={audioRef} className="hidden" />
 
                         <div className="mt-6 pt-6 border-t border-white/20 text-xs text-white/60 text-center">
                             <p>📱 Install this app: Tap your browser menu and select "Add to Home Screen"</p>
