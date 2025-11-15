@@ -6,12 +6,9 @@
     <meta name="theme-color" content="#1e1b4b">
     <title>Audio to Vibration Converter</title>
     <link rel="manifest" href="manifest.json">
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
         input[type="range"]::-webkit-slider-thumb {
             appearance: none;
             width: 20px;
@@ -28,16 +25,26 @@
             cursor: pointer;
             border: none;
         }
-        .fullscreen-video {
+        .video-container {
+            position: relative;
+            background: black;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .video-container video {
+            width: 100%;
+            display: block;
+        }
+        .video-container.fullscreen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: black;
             z-index: 9999;
+            border-radius: 0;
         }
-        .fullscreen-video video {
+        .video-container.fullscreen video {
             width: 100%;
             height: 100%;
             object-fit: contain;
@@ -52,6 +59,12 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .video-container.fullscreen:hover .video-controls,
+        .video-container.fullscreen .video-controls.active {
+            opacity: 1;
         }
         .progress-bar {
             flex: 1;
@@ -67,448 +80,407 @@
             border-radius: 2px;
             transition: width 0.1s;
         }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, useRef, useEffect } = React;
-
-        // Icons
-        const Music = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-            </svg>
-        );
-
-        const Video = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
-            </svg>
-        );
-
-        const Pause = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/>
-            </svg>
-        );
-
-        const Play = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-        );
-
-        const Settings = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>
-            </svg>
-        );
-
-        const Maximize = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            </svg>
-        );
-
-        const Minimize = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-            </svg>
-        );
-
-        function AudioVibrationApp() {
-            const [isPlaying, setIsPlaying] = useState(false);
-            const [sensitivity, setSensitivity] = useState(50);
-            const [file, setFile] = useState(null);
-            const [fileName, setFileName] = useState('');
-            const [error, setError] = useState('');
-            const [isFullscreen, setIsFullscreen] = useState(false);
-            const [progress, setProgress] = useState(0);
-            const [isVideo, setIsVideo] = useState(false);
-            
-            const mediaRef = useRef(null);
-            const audioContextRef = useRef(null);
-            const analyserRef = useRef(null);
-            const animationRef = useRef(null);
-            const sourceRef = useRef(null);
-            const vibrationIntervalRef = useRef(null);
-
-            useEffect(() => {
-                if (!navigator.vibrate) {
-                    setError('Vibration API not supported on this device');
-                }
-                
-                return () => {
-                    stopPlayback();
-                };
-            }, []);
-
-            const handleFileSelect = (e) => {
-                const selectedFile = e.target.files[0];
-                if (selectedFile) {
-                    const fileType = selectedFile.type;
-                    if (fileType.startsWith('audio/') || fileType.startsWith('video/')) {
-                        setFile(selectedFile);
-                        setFileName(selectedFile.name);
-                        setIsVideo(fileType.startsWith('video/'));
-                        setError('');
-                        
-                        const url = URL.createObjectURL(selectedFile);
-                        if (mediaRef.current) {
-                            mediaRef.current.src = url;
-                        }
-                    } else {
-                        setError('Please select an audio or video file');
-                    }
-                }
-            };
-
-            const initAudioContext = () => {
-                if (!audioContextRef.current && mediaRef.current) {
-                    try {
-                        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-                        analyserRef.current = audioContextRef.current.createAnalyser();
-                        analyserRef.current.fftSize = 512;
-                        analyserRef.current.smoothingTimeConstant = 0.8;
-                        
-                        sourceRef.current = audioContextRef.current.createMediaElementSource(mediaRef.current);
-                        sourceRef.current.connect(analyserRef.current);
-                        analyserRef.current.connect(audioContextRef.current.destination);
-                    } catch (err) {
-                        console.error('Audio context error:', err);
-                    }
-                }
-            };
-
-            const analyzeAudio = () => {
-                const bufferLength = analyserRef.current.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                
-                const analyze = () => {
-                    if (!isPlaying) return;
-                    
-                    analyserRef.current.getByteFrequencyData(dataArray);
-                    
-                    // Focus on bass frequencies (0-250Hz roughly first 32 bins)
-                    let bassSum = 0;
-                    let midSum = 0;
-                    
-                    for (let i = 0; i < 32; i++) {
-                        bassSum += dataArray[i];
-                    }
-                    for (let i = 32; i < 96; i++) {
-                        midSum += dataArray[i];
-                    }
-                    
-                    const bassAvg = bassSum / 32;
-                    const midAvg = midSum / 64;
-                    const combined = (bassAvg * 0.7 + midAvg * 0.3);
-                    
-                    // Adjust threshold based on sensitivity
-                    const threshold = (100 - sensitivity) * 1.5;
-                    
-                    if (combined > threshold) {
-                        // Map to vibration intensity (10-200ms)
-                        const intensity = Math.max(10, Math.min(Math.floor((combined / 255) * 200), 200));
-                        try {
-                            navigator.vibrate(intensity);
-                        } catch (e) {
-                            console.error('Vibration error:', e);
-                        }
-                    }
-                    
-                    animationRef.current = requestAnimationFrame(analyze);
-                };
-                
-                analyze();
-            };
-
-            const togglePlayback = async () => {
-                if (!file) {
-                    setError('Please select a file first');
-                    return;
-                }
-
-                if (isPlaying) {
-                    stopPlayback();
-                } else {
-                    try {
-                        if (!audioContextRef.current) {
-                            initAudioContext();
-                        }
-                        
-                        if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-                            await audioContextRef.current.resume();
-                        }
-                        
-                        await mediaRef.current.play();
-                        setIsPlaying(true);
-                        
-                        if (analyserRef.current) {
-                            analyzeAudio();
-                        }
-                        
-                        setError('');
-                    } catch (err) {
-                        setError('Error playing file: ' + err.message);
-                        console.error('Playback error:', err);
-                    }
-                }
-            };
-
-            const stopPlayback = () => {
-                if (mediaRef.current) {
-                    mediaRef.current.pause();
-                }
-                if (animationRef.current) {
-                    cancelAnimationFrame(animationRef.current);
-                }
-                if (vibrationIntervalRef.current) {
-                    clearInterval(vibrationIntervalRef.current);
-                }
-                try {
-                    navigator.vibrate(0);
-                } catch (e) {}
-                setIsPlaying(false);
-            };
-
-            const toggleFullscreen = async () => {
-                if (!isFullscreen) {
-                    try {
-                        if (document.documentElement.requestFullscreen) {
-                            await document.documentElement.requestFullscreen();
-                        } else if (document.documentElement.webkitRequestFullscreen) {
-                            await document.documentElement.webkitRequestFullscreen();
-                        }
-                        
-                        if (screen.orientation && screen.orientation.lock) {
-                            try {
-                                await screen.orientation.lock('landscape');
-                            } catch (e) {
-                                console.log('Orientation lock not supported');
-                            }
-                        }
-                        
-                        setIsFullscreen(true);
-                    } catch (err) {
-                        console.error('Fullscreen error:', err);
-                    }
-                } else {
-                    try {
-                        if (document.exitFullscreen) {
-                            await document.exitFullscreen();
-                        } else if (document.webkitExitFullscreen) {
-                            await document.webkitExitFullscreen();
-                        }
-                        
-                        if (screen.orientation && screen.orientation.unlock) {
-                            screen.orientation.unlock();
-                        }
-                        
-                        setIsFullscreen(false);
-                    } catch (err) {
-                        console.error('Exit fullscreen error:', err);
-                    }
-                }
-            };
-
-            useEffect(() => {
-                const handleFullscreenChange = () => {
-                    const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
-                    setIsFullscreen(isCurrentlyFullscreen);
-                };
-
-                document.addEventListener('fullscreenchange', handleFullscreenChange);
-                document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
-                return () => {
-                    document.removeEventListener('fullscreenchange', handleFullscreenChange);
-                    document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-                };
-            }, []);
-
-            useEffect(() => {
-                const updateProgress = () => {
-                    if (mediaRef.current && mediaRef.current.duration) {
-                        setProgress((mediaRef.current.currentTime / mediaRef.current.duration) * 100);
-                    }
-                };
-
-                const interval = setInterval(updateProgress, 100);
-                return () => clearInterval(interval);
-            }, [isPlaying]);
-
-            const handleProgressClick = (e) => {
-                if (mediaRef.current && mediaRef.current.duration) {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const pos = (e.clientX - rect.left) / rect.width;
-                    mediaRef.current.currentTime = pos * mediaRef.current.duration;
-                }
-            };
-
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-                    {isFullscreen && isVideo && (
-                        <div className="fullscreen-video">
-                            <div className="video-controls">
-                                <button 
-                                    onClick={togglePlayback}
-                                    className="text-white p-2 hover:bg-white/20 rounded"
-                                >
-                                    {isPlaying ? <Pause /> : <Play />}
-                                </button>
-                                <div className="progress-bar" onClick={handleProgressClick}>
-                                    <div className="progress-filled" style={{width: `${progress}%`}} />
-                                </div>
-                                <button 
-                                    onClick={toggleFullscreen}
-                                    className="text-white p-2 hover:bg-white/20 rounded"
-                                >
-                                    <Minimize />
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className={`w-full max-w-md bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl p-6 text-white ${isFullscreen ? 'hidden' : ''}`}>
-                        <div className="text-center mb-6">
-                            <div className="flex justify-center mb-3">
-                                <div className="bg-white/20 p-4 rounded-full">
-                                    <Music />
-                                </div>
-                            </div>
-                            <h1 className="text-2xl font-bold mb-1">Audio to Vibration</h1>
-                            <p className="text-sm text-white/70">Feel the rhythm</p>
-                        </div>
-
-                        {error && (
-                            <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4 text-sm">
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-2">
-                                    Select Audio/Video File
-                                </label>
-                                <input
-                                    type="file"
-                                    accept="audio/*,video/*"
-                                    onChange={handleFileSelect}
-                                    className="hidden"
-                                    id="fileInput"
-                                />
-                                <label
-                                    htmlFor="fileInput"
-                                    className="flex items-center justify-center gap-2 w-full bg-white/20 hover:bg-white/30 rounded-xl p-4 cursor-pointer transition-all"
-                                >
-                                    <Video />
-                                    <span className="text-sm">
-                                        {fileName || 'Choose file...'}
-                                    </span>
-                                </label>
-                            </div>
-
-                            {isVideo && file && (
-                                <div className="bg-black rounded-xl overflow-hidden relative">
-                                    <video 
-                                        ref={mediaRef}
-                                        className={`w-full ${isFullscreen ? 'fixed top-0 left-0 w-screen h-screen object-contain z-50' : ''}`}
-                                        controls={false}
-                                        playsInline
-                                        onClick={isFullscreen ? togglePlayback : undefined}
-                                    />
-                                </div>
-                            )}
-
-                            {!isVideo && file && (
-                                <audio ref={mediaRef} className="hidden" />
-                            )}
-
-                            <div>
-                                <label className="flex items-center gap-2 text-sm font-medium mb-2">
-                                    <Settings />
-                                    Sensitivity: {sensitivity}%
-                                </label>
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={sensitivity}
-                                    onChange={(e) => setSensitivity(Number(e.target.value))}
-                                    className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-                                    style={{
-                                        background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${sensitivity}%, rgba(255,255,255,0.2) ${sensitivity}%, rgba(255,255,255,0.2) 100%)`
-                                    }}
-                                />
-                                <div className="flex justify-between text-xs text-white/60 mt-1">
-                                    <span>Less sensitive</span>
-                                    <span>More sensitive</span>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={togglePlayback}
-                                    disabled={!file}
-                                    className={`flex-1 py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all ${
-                                        file
-                                            ? 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg'
-                                            : 'bg-white/10 cursor-not-allowed opacity-50'
-                                    }`}
-                                >
-                                    {isPlaying ? (
-                                        <>
-                                            <Pause />
-                                            Stop
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Play />
-                                            Play
-                                        </>
-                                    )}
-                                </button>
-
-                                {isVideo && file && (
-                                    <button
-                                        onClick={toggleFullscreen}
-                                        className="py-4 px-6 rounded-xl font-semibold bg-white/20 hover:bg-white/30 transition-all"
-                                    >
-                                        <Maximize />
-                                    </button>
-                                )}
-                            </div>
-
-                            {isPlaying && (
-                                <div className="bg-white/10 rounded-xl p-4 text-center">
-                                    <div className="flex justify-center mb-2">
-                                        <div className="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
-                                    </div>
-                                    <p className="text-sm">Playing... Your phone should vibrate with the audio</p>
-                                    <p className="text-xs text-white/60 mt-1">Make sure your phone is not on silent mode</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="mt-6 pt-6 border-t border-white/20 text-xs text-white/60 text-center">
-                            <p>📱 Install this app: Tap your browser menu and select "Add to Home Screen"</p>
+    <div id="app">
+        <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+            <div id="mainContainer" class="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl p-6 text-white">
+                <div class="text-center mb-6">
+                    <div class="flex justify-center mb-3">
+                        <div class="bg-white/20 p-4 rounded-full">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                            </svg>
                         </div>
                     </div>
+                    <h1 class="text-2xl font-bold mb-1">Audio to Vibration</h1>
+                    <p class="text-sm text-white/70">Feel the rhythm</p>
                 </div>
-            );
+
+                <div id="errorBox" class="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4 text-sm hidden"></div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Select Audio/Video File</label>
+                        <input type="file" accept="audio/*,video/*" id="fileInput" class="hidden">
+                        <label for="fileInput" class="flex items-center justify-center gap-2 w-full bg-white/20 hover:bg-white/30 rounded-xl p-4 cursor-pointer transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
+                            </svg>
+                            <span class="text-sm" id="fileName">Choose file...</span>
+                        </label>
+                    </div>
+
+                    <div id="videoContainer" class="video-container hidden">
+                        <video id="mediaElement" playsinline></video>
+                        <div class="video-controls" id="videoControls">
+                            <button id="playPauseBtn" class="text-white p-2 hover:bg-white/20 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="5 3 19 12 5 21 5 3"/>
+                                </svg>
+                            </button>
+                            <div class="progress-bar" id="progressBar">
+                                <div class="progress-filled" id="progressFilled"></div>
+                            </div>
+                            <button id="fullscreenBtn" class="text-white p-2 hover:bg-white/20 rounded">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <audio id="audioElement" class="hidden"></audio>
+
+                    <div>
+                        <label class="flex items-center gap-2 text-sm font-medium mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 1v6m0 6v6m10-10h-6M9 12H3"/>
+                            </svg>
+                            Sensitivity: <span id="sensitivityValue">50</span>%
+                        </label>
+                        <input type="range" min="0" max="100" value="50" id="sensitivitySlider" 
+                               class="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer">
+                        <div class="flex justify-between text-xs text-white/60 mt-1">
+                            <span>Less sensitive</span>
+                            <span>More sensitive</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button id="playBtn" disabled class="flex-1 py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all bg-white/10 cursor-not-allowed opacity-50">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            Play
+                        </button>
+                        <button id="fullscreenToggle" class="py-4 px-6 rounded-xl font-semibold bg-white/20 hover:bg-white/30 transition-all hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div id="playingIndicator" class="bg-white/10 rounded-xl p-4 text-center hidden">
+                        <div class="flex justify-center mb-2">
+                            <div class="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                        <p class="text-sm">Playing... Your phone should vibrate with the audio</p>
+                        <p class="text-xs text-white/60 mt-1">Make sure your phone is not on silent mode</p>
+                    </div>
+                </div>
+
+                <div class="mt-6 pt-6 border-t border-white/20 text-xs text-white/60 text-center">
+                    <p>📱 Install this app: Tap your browser menu and select "Add to Home Screen"</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let isPlaying = false;
+        let sensitivity = 50;
+        let file = null;
+        let isVideo = false;
+        let isFullscreen = false;
+        let audioContext = null;
+        let analyser = null;
+        let source = null;
+        let animationFrame = null;
+
+        // Elements
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const playBtn = document.getElementById('playBtn');
+        const sensitivitySlider = document.getElementById('sensitivitySlider');
+        const sensitivityValue = document.getElementById('sensitivityValue');
+        const errorBox = document.getElementById('errorBox');
+        const playingIndicator = document.getElementById('playingIndicator');
+        const videoContainer = document.getElementById('videoContainer');
+        const audioElement = document.getElementById('audioElement');
+        const mediaElement = document.getElementById('mediaElement');
+        const progressBar = document.getElementById('progressBar');
+        const progressFilled = document.getElementById('progressFilled');
+        const fullscreenToggle = document.getElementById('fullscreenToggle');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const videoControls = document.getElementById('videoControls');
+        const mainContainer = document.getElementById('mainContainer');
+
+        // Check vibration support
+        if (!navigator.vibrate) {
+            showError('Vibration API not supported on this device');
         }
 
-        // Wait for DOM to be ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                ReactDOM.render(<AudioVibrationApp />, document.getElementById('root'));
-            });
-        } else {
-            ReactDOM.render(<AudioVibrationApp />, document.getElementById('root'));
+        // File selection
+        fileInput.addEventListener('change', (e) => {
+            const selectedFile = e.target.files[0];
+            if (selectedFile) {
+                const fileType = selectedFile.type;
+                if (fileType.startsWith('audio/') || fileType.startsWith('video/')) {
+                    file = selectedFile;
+                    fileName.textContent = selectedFile.name;
+                    isVideo = fileType.startsWith('video/');
+                    hideError();
+                    
+                    const url = URL.createObjectURL(selectedFile);
+                    const currentMedia = isVideo ? mediaElement : audioElement;
+                    currentMedia.src = url;
+                    
+                    if (isVideo) {
+                        videoContainer.classList.remove('hidden');
+                        fullscreenToggle.classList.remove('hidden');
+                    } else {
+                        videoContainer.classList.add('hidden');
+                        fullscreenToggle.classList.add('hidden');
+                    }
+                    
+                    playBtn.disabled = false;
+                    playBtn.classList.remove('bg-white/10', 'cursor-not-allowed', 'opacity-50');
+                    playBtn.classList.add('bg-gradient-to-r', 'from-purple-500', 'to-blue-500', 'hover:from-purple-600', 'hover:to-blue-600', 'shadow-lg');
+                } else {
+                    showError('Please select an audio or video file');
+                }
+            }
+        });
+
+        // Sensitivity slider
+        sensitivitySlider.addEventListener('input', (e) => {
+            sensitivity = Number(e.target.value);
+            sensitivityValue.textContent = sensitivity;
+            const bg = `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${sensitivity}%, rgba(255,255,255,0.2) ${sensitivity}%, rgba(255,255,255,0.2) 100%)`;
+            sensitivitySlider.style.background = bg;
+        });
+
+        // Initialize audio context
+        function initAudioContext() {
+            if (!audioContext) {
+                const currentMedia = isVideo ? mediaElement : audioElement;
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 512;
+                    analyser.smoothingTimeConstant = 0.8;
+                    
+                    source = audioContext.createMediaElementSource(currentMedia);
+                    source.connect(analyser);
+                    analyser.connect(audioContext.destination);
+                } catch (err) {
+                    console.error('Audio context error:', err);
+                }
+            }
+        }
+
+        // Analyze audio and vibrate
+        function analyzeAudio() {
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function analyze() {
+                if (!isPlaying) return;
+                
+                analyser.getByteFrequencyData(dataArray);
+                
+                let bassSum = 0;
+                let midSum = 0;
+                
+                for (let i = 0; i < 32; i++) {
+                    bassSum += dataArray[i];
+                }
+                for (let i = 32; i < 96; i++) {
+                    midSum += dataArray[i];
+                }
+                
+                const bassAvg = bassSum / 32;
+                const midAvg = midSum / 64;
+                const combined = (bassAvg * 0.7 + midAvg * 0.3);
+                
+                const threshold = (100 - sensitivity) * 1.5;
+                
+                if (combined > threshold) {
+                    const intensity = Math.max(10, Math.min(Math.floor((combined / 255) * 200), 200));
+                    try {
+                        navigator.vibrate(intensity);
+                    } catch (e) {
+                        console.error('Vibration error:', e);
+                    }
+                }
+                
+                animationFrame = requestAnimationFrame(analyze);
+            }
+            
+            analyze();
+        }
+
+        // Play/Stop
+        playBtn.addEventListener('click', async () => {
+            if (!file) {
+                showError('Please select a file first');
+                return;
+            }
+
+            if (isPlaying) {
+                stopPlayback();
+            } else {
+                try {
+                    if (!audioContext) {
+                        initAudioContext();
+                    }
+                    
+                    if (audioContext && audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+                    
+                    const currentMedia = isVideo ? mediaElement : audioElement;
+                    await currentMedia.play();
+                    isPlaying = true;
+                    
+                    if (analyser) {
+                        analyzeAudio();
+                    }
+                    
+                    playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg> Stop';
+                    playingIndicator.classList.remove('hidden');
+                    hideError();
+                } catch (err) {
+                    showError('Error playing file: ' + err.message);
+                    console.error('Playback error:', err);
+                }
+            }
+        });
+
+        function stopPlayback() {
+            const currentMedia = isVideo ? mediaElement : audioElement;
+            currentMedia.pause();
+            
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            
+            try {
+                navigator.vibrate(0);
+            } catch (e) {}
+            
+            isPlaying = false;
+            playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Play';
+            playingIndicator.classList.add('hidden');
+        }
+
+        // Fullscreen
+        async function toggleFullscreen() {
+            if (!isFullscreen) {
+                try {
+                    if (document.documentElement.requestFullscreen) {
+                        await document.documentElement.requestFullscreen();
+                    } else if (document.documentElement.webkitRequestFullscreen) {
+                        await document.documentElement.webkitRequestFullscreen();
+                    }
+                    
+                    if (screen.orientation && screen.orientation.lock) {
+                        try {
+                            await screen.orientation.lock('landscape');
+                        } catch (e) {
+                            console.log('Orientation lock not supported');
+                        }
+                    }
+                    
+                    videoContainer.classList.add('fullscreen');
+                    mainContainer.classList.add('hidden');
+                    videoControls.classList.add('active');
+                    isFullscreen = true;
+                } catch (err) {
+                    console.error('Fullscreen error:', err);
+                }
+            } else {
+                try {
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        await document.webkitExitFullscreen();
+                    }
+                    
+                    if (screen.orientation && screen.orientation.unlock) {
+                        screen.orientation.unlock();
+                    }
+                    
+                    videoContainer.classList.remove('fullscreen');
+                    mainContainer.classList.remove('hidden');
+                    videoControls.classList.remove('active');
+                    isFullscreen = false;
+                } catch (err) {
+                    console.error('Exit fullscreen error:', err);
+                }
+            }
+        }
+
+        fullscreenToggle.addEventListener('click', toggleFullscreen);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+        // Fullscreen change events
+        document.addEventListener('fullscreenchange', () => {
+            const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            if (!isCurrentlyFullscreen && isFullscreen) {
+                videoContainer.classList.remove('fullscreen');
+                mainContainer.classList.remove('hidden');
+                videoControls.classList.remove('active');
+                isFullscreen = false;
+            }
+        });
+
+        document.addEventListener('webkitfullscreenchange', () => {
+            const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            if (!isCurrentlyFullscreen && isFullscreen) {
+                videoContainer.classList.remove('fullscreen');
+                mainContainer.classList.remove('hidden');
+                videoControls.classList.remove('active');
+                isFullscreen = false;
+            }
+        });
+
+        // Video controls
+        playPauseBtn.addEventListener('click', async () => {
+            if (isPlaying) {
+                stopPlayback();
+            } else {
+                if (!audioContext) {
+                    initAudioContext();
+                }
+                await mediaElement.play();
+                isPlaying = true;
+                analyzeAudio();
+            }
+        });
+
+        // Progress bar
+        progressBar.addEventListener('click', (e) => {
+            const rect = progressBar.getBoundingClientRect();
+            const pos = (e.clientX - rect.left) / rect.width;
+            mediaElement.currentTime = pos * mediaElement.duration;
+        });
+
+        // Update progress
+        setInterval(() => {
+            const currentMedia = isVideo ? mediaElement : audioElement;
+            if (currentMedia && currentMedia.duration) {
+                const progress = (currentMedia.currentTime / currentMedia.duration) * 100;
+                progressFilled.style.width = progress + '%';
+            }
+        }, 100);
+
+        // Error handling
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorBox.classList.add('hidden');
         }
     </script>
 </body>
