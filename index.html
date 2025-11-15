@@ -351,14 +351,40 @@
         // Test vibration button
         testVibrateBtn.addEventListener('click', () => {
             try {
-                const success = navigator.vibrate([100, 50, 100, 50, 100]);
-                if (success) {
-                    showSuccess('✅ Vibration test successful! You should feel 3 short pulses.');
-                } else {
-                    showError('❌ Vibration failed. Check phone settings: Settings → Sound → Vibration');
-                }
+                // Try multiple vibration patterns to test what works
+                console.log('🧪 Testing vibration...');
+                
+                // Pattern 1: Simple long vibration
+                const test1 = navigator.vibrate(500);
+                console.log('Test 1 (500ms):', test1);
+                
+                setTimeout(() => {
+                    // Pattern 2: Pattern vibration
+                    const test2 = navigator.vibrate([200, 100, 200, 100, 200]);
+                    console.log('Test 2 (pattern):', test2);
+                }, 600);
+                
+                setTimeout(() => {
+                    // Pattern 3: Very strong vibration
+                    const test3 = navigator.vibrate(1000);
+                    console.log('Test 3 (1000ms):', test3);
+                }, 1800);
+                
+                showSuccess('✅ Vibration commands sent! Check console and phone settings if you don\'t feel anything.');
+                
+                // Show detailed instructions
+                setTimeout(() => {
+                    showError('⚠️ NOT FEELING VIBRATION? Check:\n\n' +
+                        '1. Settings → Sound → Vibration intensity (turn to MAX)\n' +
+                        '2. Turn OFF Silent/DND mode\n' +
+                        '3. Settings → Accessibility → Vibration (enable all)\n' +
+                        '4. Remove phone case (might dampen vibration)\n' +
+                        '5. Hold phone in hand (vibration weaker on table)');
+                }, 3000);
+                
             } catch (e) {
                 showError('❌ Vibration error: ' + e.message);
+                console.error('Vibration error:', e);
             }
         });
 
@@ -428,46 +454,70 @@
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
             let vibrationCount = 0;
+            let lastVibrationTime = 0;
             
             function analyze() {
                 if (!isPlaying) return;
                 
                 analyser.getByteFrequencyData(dataArray);
                 
-                // Focus on low to mid frequencies (bass and drums)
+                // Calculate overall volume
+                let total = 0;
                 let lowSum = 0;
                 let midSum = 0;
+                let highSum = 0;
                 
-                // Low frequencies (bass) - 0-200Hz approximately
+                // Low frequencies (bass) - 0-200Hz
                 for (let i = 0; i < 60; i++) {
                     lowSum += dataArray[i];
+                    total += dataArray[i];
                 }
                 
-                // Mid frequencies - 200-800Hz approximately  
-                for (let i = 60; i < 150; i++) {
+                // Mid frequencies - 200-1000Hz
+                for (let i = 60; i < 200; i++) {
                     midSum += dataArray[i];
+                    total += dataArray[i];
+                }
+                
+                // High frequencies
+                for (let i = 200; i < bufferLength; i++) {
+                    highSum += dataArray[i];
+                    total += dataArray[i];
                 }
                 
                 const lowAvg = lowSum / 60;
-                const midAvg = midSum / 90;
+                const midAvg = midSum / 140;
+                const highAvg = highSum / (bufferLength - 200);
+                const overallAvg = total / bufferLength;
                 
-                // Combine with emphasis on bass
-                const combined = (lowAvg * 0.7 + midAvg * 0.3);
+                // Weight toward bass and overall volume
+                const combined = (lowAvg * 0.5 + midAvg * 0.3 + overallAvg * 0.2);
                 
-                // Dynamic threshold
-                const baseThreshold = 30;
-                const threshold = baseThreshold + ((100 - sensitivity) * 0.8);
+                // More aggressive threshold
+                const baseThreshold = 20; // Lower threshold
+                const threshold = baseThreshold + ((100 - sensitivity) * 0.5);
                 
-                if (combined > threshold) {
-                    // Map to vibration duration (30-100ms feels best)
-                    const duration = Math.max(30, Math.min(Math.floor((combined / 255) * 100), 100));
+                const now = Date.now();
+                const timeSinceLastVibration = now - lastVibrationTime;
+                
+                // Vibrate more frequently and with longer durations
+                if (combined > threshold && timeSinceLastVibration > 80) {
+                    // Longer vibration durations (50-200ms)
+                    const duration = Math.max(50, Math.min(Math.floor((combined / 255) * 200), 200));
                     
                     try {
-                        navigator.vibrate(duration);
-                        vibrationCount++;
+                        // Use pattern for stronger effect
+                        const pattern = [duration];
+                        const result = navigator.vibrate(pattern);
                         
-                        if (vibrationCount % 20 === 0) {
-                            console.log('🔊 Vibrating:', duration + 'ms', 'Level:', combined.toFixed(1), 'Count:', vibrationCount);
+                        vibrationCount++;
+                        lastVibrationTime = now;
+                        
+                        if (vibrationCount % 10 === 0) {
+                            console.log('🔊 Vibration #' + vibrationCount + ':', duration + 'ms', 
+                                       'Level:', combined.toFixed(1), 
+                                       'Bass:', lowAvg.toFixed(1),
+                                       'Result:', result);
                         }
                     } catch (e) {
                         console.error('Vibration error:', e);
@@ -477,7 +527,8 @@
                 animationFrame = requestAnimationFrame(analyze);
             }
             
-            console.log('🎵 Starting audio analysis...');
+            console.log('🎵 Starting audio analysis with aggressive vibration...');
+            console.log('📊 Sensitivity:', sensitivity, 'Threshold:', (20 + ((100 - sensitivity) * 0.5)).toFixed(1));
             analyze();
         }
 
