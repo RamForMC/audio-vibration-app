@@ -348,39 +348,31 @@
                 }
             };
 
-            if (isFullscreen && isVideo) {
-                return (
-                    <div className="fullscreen-video">
-                        <video 
-                            ref={mediaRef}
-                            controls={false}
-                            playsInline
-                            onClick={togglePlayback}
-                        />
-                        <div className="video-controls">
-                            <button 
-                                onClick={togglePlayback}
-                                className="text-white p-2 hover:bg-white/20 rounded"
-                            >
-                                {isPlaying ? <Pause /> : <Play />}
-                            </button>
-                            <div className="progress-bar" onClick={handleProgressClick}>
-                                <div className="progress-filled" style={{width: `${progress}%`}} />
-                            </div>
-                            <button 
-                                onClick={toggleFullscreen}
-                                className="text-white p-2 hover:bg-white/20 rounded"
-                            >
-                                <Minimize />
-                            </button>
-                        </div>
-                    </div>
-                );
-            }
-
             return (
                 <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-                    <div className="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl p-6 text-white">
+                    {isFullscreen && isVideo && (
+                        <div className="fullscreen-video">
+                            <div className="video-controls">
+                                <button 
+                                    onClick={togglePlayback}
+                                    className="text-white p-2 hover:bg-white/20 rounded"
+                                >
+                                    {isPlaying ? <Pause /> : <Play />}
+                                </button>
+                                <div className="progress-bar" onClick={handleProgressClick}>
+                                    <div className="progress-filled" style={{width: `${progress}%`}} />
+                                </div>
+                                <button 
+                                    onClick={toggleFullscreen}
+                                    className="text-white p-2 hover:bg-white/20 rounded"
+                                >
+                                    <Minimize />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className={`w-full max-w-md bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl p-6 text-white ${isFullscreen ? 'hidden' : ''}`}>
                         <div className="text-center mb-6">
                             <div className="flex justify-center mb-3">
                                 <div className="bg-white/20 p-4 rounded-full">
@@ -421,12 +413,13 @@
                             </div>
 
                             {isVideo && file && (
-                                <div className="bg-black rounded-xl overflow-hidden">
+                                <div className="bg-black rounded-xl overflow-hidden relative">
                                     <video 
                                         ref={mediaRef}
-                                        className="w-full"
+                                        className={`w-full ${isFullscreen ? 'fixed top-0 left-0 w-screen h-screen object-contain z-50' : ''}`}
                                         controls={false}
                                         playsInline
+                                        onClick={isFullscreen ? togglePlayback : undefined}
                                     />
                                 </div>
                             )}
