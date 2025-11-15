@@ -502,7 +502,14 @@
             );
         }
 
-        ReactDOM.render(<AudioVibrationApp />, document.getElementById('root'));
+        // Wait for DOM to be ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                ReactDOM.render(<AudioVibrationApp />, document.getElementById('root'));
+            });
+        } else {
+            ReactDOM.render(<AudioVibrationApp />, document.getElementById('root'));
+        }
     </script>
 </body>
 </html>
