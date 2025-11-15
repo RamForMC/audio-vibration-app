@@ -6,30 +6,100 @@
     <meta name="theme-color" content="#1e1b4b">
     <title>Audio to Vibration Converter</title>
     <link rel="manifest" href="manifest.json">
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-        input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #8b5cf6;
-            cursor: pointer;
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e3a8a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            color: white;
         }
-        input[type="range"]::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
+        .container {
+            width: 100%;
+            max-width: 480px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .icon-circle {
+            width: 64px;
+            height: 64px;
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 50%;
-            background: #8b5cf6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+        .error-box {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .success-box {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid rgba(34, 197, 94, 0.5);
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 14px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
             cursor: pointer;
-            border: none;
+            transition: all 0.3s;
+        }
+        .file-input-label:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        input[type="file"] {
+            display: none;
         }
         .video-container {
             position: relative;
             background: black;
             border-radius: 12px;
             overflow: hidden;
+            display: none;
         }
         .video-container video {
             width: 100%;
@@ -49,136 +119,198 @@
             height: 100%;
             object-fit: contain;
         }
-        .video-controls {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
-            padding: 20px;
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #8b5cf6;
+            cursor: pointer;
+            border: none;
+        }
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            opacity: 0.6;
+            margin-top: 4px;
+        }
+        .button-group {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 15px;
-            opacity: 0;
-            transition: opacity 0.3s;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s;
         }
-        .video-container.fullscreen:hover .video-controls,
-        .video-container.fullscreen .video-controls.active {
-            opacity: 1;
+        .btn-primary {
+            background: linear-gradient(135deg, #8b5cf6 0%, #3b82f6 100%);
+            color: white;
         }
-        .progress-bar {
-            flex: 1;
-            height: 4px;
-            background: rgba(255,255,255,0.3);
-            border-radius: 2px;
-            cursor: pointer;
-            position: relative;
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(139, 92, 246, 0.4);
         }
-        .progress-filled {
-            height: 100%;
-            background: #8b5cf6;
-            border-radius: 2px;
-            transition: width 0.1s;
+        .btn-primary:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 16px 24px;
+            flex: 0;
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .btn-test {
+            background: rgba(139, 92, 246, 0.3);
+            color: white;
+            border: 2px solid #8b5cf6;
+        }
+        .btn-test:hover {
+            background: rgba(139, 92, 246, 0.5);
+        }
+        .indicator {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            display: none;
+        }
+        .spinner {
+            width: 64px;
+            height: 64px;
+            border: 4px solid rgba(167, 139, 250, 0.3);
+            border-top-color: #a78bfa;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .footer {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+            font-size: 12px;
+            opacity: 0.6;
         }
         .hidden {
+            display: none !important;
+        }
+        audio {
             display: none;
         }
     </style>
 </head>
 <body>
-    <div id="app">
-        <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-            <div id="mainContainer" class="w-full max-w-md bg-white/10 backdrop-blur-lg rounded-3xl shadow-2xl p-6 text-white">
-                <div class="text-center mb-6">
-                    <div class="flex justify-center mb-3">
-                        <div class="bg-white/20 p-4 rounded-full">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <h1 class="text-2xl font-bold mb-1">Audio to Vibration</h1>
-                    <p class="text-sm text-white/70">Feel the rhythm</p>
-                </div>
-
-                <div id="errorBox" class="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-4 text-sm hidden"></div>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Select Audio/Video File</label>
-                        <input type="file" accept="audio/*,video/*" id="fileInput" class="hidden">
-                        <label for="fileInput" class="flex items-center justify-center gap-2 w-full bg-white/20 hover:bg-white/30 rounded-xl p-4 cursor-pointer transition-all">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
-                            </svg>
-                            <span class="text-sm" id="fileName">Choose file...</span>
-                        </label>
-                    </div>
-
-                    <div id="videoContainer" class="video-container hidden">
-                        <video id="mediaElement" playsinline></video>
-                        <div class="video-controls" id="videoControls">
-                            <button id="playPauseBtn" class="text-white p-2 hover:bg-white/20 rounded">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polygon points="5 3 19 12 5 21 5 3"/>
-                                </svg>
-                            </button>
-                            <div class="progress-bar" id="progressBar">
-                                <div class="progress-filled" id="progressFilled"></div>
-                            </div>
-                            <button id="fullscreenBtn" class="text-white p-2 hover:bg-white/20 rounded">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <audio id="audioElement" class="hidden"></audio>
-
-                    <div>
-                        <label class="flex items-center gap-2 text-sm font-medium mb-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="3"/>
-                                <path d="M12 1v6m0 6v6m10-10h-6M9 12H3"/>
-                            </svg>
-                            Sensitivity: <span id="sensitivityValue">50</span>%
-                        </label>
-                        <input type="range" min="0" max="100" value="50" id="sensitivitySlider" 
-                               class="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer">
-                        <div class="flex justify-between text-xs text-white/60 mt-1">
-                            <span>Less sensitive</span>
-                            <span>More sensitive</span>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-2">
-                        <button id="playBtn" disabled class="flex-1 py-4 rounded-xl font-semibold text-lg flex items-center justify-center gap-3 transition-all bg-white/10 cursor-not-allowed opacity-50">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="5 3 19 12 5 21 5 3"/>
-                            </svg>
-                            Play
-                        </button>
-                        <button id="fullscreenToggle" class="py-4 px-6 rounded-xl font-semibold bg-white/20 hover:bg-white/30 transition-all hidden">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div id="playingIndicator" class="bg-white/10 rounded-xl p-4 text-center hidden">
-                        <div class="flex justify-center mb-2">
-                            <div class="w-16 h-16 border-4 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                        <p class="text-sm">Playing... Your phone should vibrate with the audio</p>
-                        <p class="text-xs text-white/60 mt-1">Make sure your phone is not on silent mode</p>
-                    </div>
-                </div>
-
-                <div class="mt-6 pt-6 border-t border-white/20 text-xs text-white/60 text-center">
-                    <p>📱 Install this app: Tap your browser menu and select "Add to Home Screen"</p>
-                </div>
+    <div class="container">
+        <div class="header">
+            <div class="icon-circle">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
             </div>
+            <h1>Audio to Vibration</h1>
+            <p class="subtitle">Feel the rhythm</p>
+        </div>
+
+        <div id="errorBox" class="error-box"></div>
+        <div id="successBox" class="success-box"></div>
+
+        <div class="section">
+            <button id="testVibrateBtn" class="btn-test" style="width: 100%;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M2 12h20"/>
+                </svg>
+                Test Vibration (Click Me First!)
+            </button>
+        </div>
+
+        <div class="section">
+            <label>Select Audio/Video File</label>
+            <input type="file" accept="audio/*,video/*" id="fileInput">
+            <label for="fileInput" class="file-input-label">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
+                </svg>
+                <span id="fileName">Choose file...</span>
+            </label>
+        </div>
+
+        <div id="videoContainer" class="video-container">
+            <video id="mediaElement" playsinline></video>
+        </div>
+
+        <audio id="audioElement"></audio>
+
+        <div class="section">
+            <label>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: middle;">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m10-10h-6M9 12H3"/>
+                </svg>
+                Sensitivity: <span id="sensitivityValue">50</span>%
+            </label>
+            <input type="range" min="0" max="100" value="50" id="sensitivitySlider">
+            <div class="slider-labels">
+                <span>Less sensitive</span>
+                <span>More sensitive</span>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button id="playBtn" class="btn-primary" disabled>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Play
+            </button>
+            <button id="fullscreenToggle" class="btn-secondary hidden">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+            </button>
+        </div>
+
+        <div id="playingIndicator" class="indicator">
+            <div class="spinner"></div>
+            <p style="font-size: 14px; margin-bottom: 8px;">Playing... Your phone should vibrate</p>
+            <p style="font-size: 12px; opacity: 0.7;">Make sure your phone is not on silent mode</p>
+        </div>
+
+        <div class="footer">
+            <p>📱 Install: Tap menu → "Add to Home Screen"</p>
         </div>
     </div>
 
@@ -188,35 +320,47 @@
         let sensitivity = 50;
         let file = null;
         let isVideo = false;
-        let isFullscreen = false;
         let audioContext = null;
         let analyser = null;
         let source = null;
         let animationFrame = null;
+        let vibrationSupported = false;
 
         // Elements
         const fileInput = document.getElementById('fileInput');
         const fileName = document.getElementById('fileName');
         const playBtn = document.getElementById('playBtn');
+        const testVibrateBtn = document.getElementById('testVibrateBtn');
         const sensitivitySlider = document.getElementById('sensitivitySlider');
         const sensitivityValue = document.getElementById('sensitivityValue');
         const errorBox = document.getElementById('errorBox');
+        const successBox = document.getElementById('successBox');
         const playingIndicator = document.getElementById('playingIndicator');
         const videoContainer = document.getElementById('videoContainer');
         const audioElement = document.getElementById('audioElement');
         const mediaElement = document.getElementById('mediaElement');
-        const progressBar = document.getElementById('progressBar');
-        const progressFilled = document.getElementById('progressFilled');
         const fullscreenToggle = document.getElementById('fullscreenToggle');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
-        const playPauseBtn = document.getElementById('playPauseBtn');
-        const videoControls = document.getElementById('videoControls');
-        const mainContainer = document.getElementById('mainContainer');
 
         // Check vibration support
-        if (!navigator.vibrate) {
-            showError('Vibration API not supported on this device');
+        if ('vibrate' in navigator) {
+            vibrationSupported = true;
+        } else {
+            showError('⚠️ Vibration API not supported on this device');
         }
+
+        // Test vibration button
+        testVibrateBtn.addEventListener('click', () => {
+            try {
+                const success = navigator.vibrate([100, 50, 100, 50, 100]);
+                if (success) {
+                    showSuccess('✅ Vibration test successful! You should feel 3 short pulses.');
+                } else {
+                    showError('❌ Vibration failed. Check phone settings: Settings → Sound → Vibration');
+                }
+            } catch (e) {
+                showError('❌ Vibration error: ' + e.message);
+            }
+        });
 
         // File selection
         fileInput.addEventListener('change', (e) => {
@@ -234,16 +378,14 @@
                     currentMedia.src = url;
                     
                     if (isVideo) {
-                        videoContainer.classList.remove('hidden');
+                        videoContainer.style.display = 'block';
                         fullscreenToggle.classList.remove('hidden');
                     } else {
-                        videoContainer.classList.add('hidden');
+                        videoContainer.style.display = 'none';
                         fullscreenToggle.classList.add('hidden');
                     }
                     
                     playBtn.disabled = false;
-                    playBtn.classList.remove('bg-white/10', 'cursor-not-allowed', 'opacity-50');
-                    playBtn.classList.add('bg-gradient-to-r', 'from-purple-500', 'to-blue-500', 'hover:from-purple-600', 'hover:to-blue-600', 'shadow-lg');
                 } else {
                     showError('Please select an audio or video file');
                 }
@@ -254,8 +396,6 @@
         sensitivitySlider.addEventListener('input', (e) => {
             sensitivity = Number(e.target.value);
             sensitivityValue.textContent = sensitivity;
-            const bg = `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${sensitivity}%, rgba(255,255,255,0.2) ${sensitivity}%, rgba(255,255,255,0.2) 100%)`;
-            sensitivitySlider.style.background = bg;
         });
 
         // Initialize audio context
@@ -265,86 +405,69 @@
                 try {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 512;
-                    analyser.smoothingTimeConstant = 0.8;
+                    analyser.fftSize = 1024;
+                    analyser.smoothingTimeConstant = 0.7;
                     
                     source = audioContext.createMediaElementSource(currentMedia);
                     source.connect(analyser);
                     analyser.connect(audioContext.destination);
+                    
+                    console.log('✅ Audio context initialized');
+                    return true;
                 } catch (err) {
-                    console.error('Audio context error:', err);
+                    console.error('❌ Audio context error:', err);
+                    showError('Audio initialization failed: ' + err.message);
+                    return false;
                 }
             }
-        }
-
-        // Test vibration on first interaction
-        let vibrationTested = false;
-        function testVibration() {
-            if (!vibrationTested) {
-                try {
-                    navigator.vibrate(50);
-                    vibrationTested = true;
-                    console.log('Vibration test successful');
-                } catch (e) {
-                    console.error('Vibration test failed:', e);
-                    showError('Vibration not working. Check phone settings.');
-                }
-            }
+            return true;
         }
 
         // Analyze audio and vibrate
         function analyzeAudio() {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
-            let lastVibrationTime = 0;
+            let vibrationCount = 0;
             
             function analyze() {
                 if (!isPlaying) return;
                 
                 analyser.getByteFrequencyData(dataArray);
                 
-                // Calculate volume across frequency ranges
-                let total = 0;
-                let bassSum = 0;
+                // Focus on low to mid frequencies (bass and drums)
+                let lowSum = 0;
                 let midSum = 0;
                 
-                // Bass frequencies (most impactful for vibration)
-                for (let i = 0; i < 40; i++) {
-                    bassSum += dataArray[i];
+                // Low frequencies (bass) - 0-200Hz approximately
+                for (let i = 0; i < 60; i++) {
+                    lowSum += dataArray[i];
                 }
                 
-                // Mid frequencies
-                for (let i = 40; i < 120; i++) {
+                // Mid frequencies - 200-800Hz approximately  
+                for (let i = 60; i < 150; i++) {
                     midSum += dataArray[i];
                 }
                 
-                for (let i = 0; i < bufferLength; i++) {
-                    total += dataArray[i];
-                }
+                const lowAvg = lowSum / 60;
+                const midAvg = midSum / 90;
                 
-                const bassAvg = bassSum / 40;
-                const midAvg = midSum / 80;
-                const overallAvg = total / bufferLength;
+                // Combine with emphasis on bass
+                const combined = (lowAvg * 0.7 + midAvg * 0.3);
                 
-                // Weighted combination favoring bass
-                const combined = (bassAvg * 0.6 + midAvg * 0.3 + overallAvg * 0.1);
+                // Dynamic threshold
+                const baseThreshold = 30;
+                const threshold = baseThreshold + ((100 - sensitivity) * 0.8);
                 
-                // Dynamic threshold based on sensitivity
-                const threshold = (100 - sensitivity) * 1.2;
-                
-                const now = Date.now();
-                
-                // Vibrate if above threshold and enough time has passed (prevent too frequent vibrations)
-                if (combined > threshold && (now - lastVibrationTime) > 50) {
-                    // Map to vibration duration (20-150ms for better feel)
-                    const intensity = Math.max(20, Math.min(Math.floor((combined / 255) * 150), 150));
+                if (combined > threshold) {
+                    // Map to vibration duration (30-100ms feels best)
+                    const duration = Math.max(30, Math.min(Math.floor((combined / 255) * 100), 100));
                     
                     try {
-                        // Use vibration pattern for better effect
-                        if (navigator.vibrate) {
-                            navigator.vibrate(intensity);
-                            lastVibrationTime = now;
-                            console.log('Vibrating:', intensity, 'ms at level:', combined.toFixed(1));
+                        navigator.vibrate(duration);
+                        vibrationCount++;
+                        
+                        if (vibrationCount % 20 === 0) {
+                            console.log('🔊 Vibrating:', duration + 'ms', 'Level:', combined.toFixed(1), 'Count:', vibrationCount);
                         }
                     } catch (e) {
                         console.error('Vibration error:', e);
@@ -354,6 +477,7 @@
                 animationFrame = requestAnimationFrame(analyze);
             }
             
+            console.log('🎵 Starting audio analysis...');
             analyze();
         }
 
@@ -364,49 +488,38 @@
                 return;
             }
 
-            // Test vibration on first click
-            testVibration();
-
             if (isPlaying) {
                 stopPlayback();
             } else {
                 try {
                     if (!audioContext) {
-                        initAudioContext();
+                        const success = initAudioContext();
+                        if (!success) return;
                     }
                     
-                    if (audioContext && audioContext.state === 'suspended') {
+                    if (audioContext.state === 'suspended') {
                         await audioContext.resume();
+                        console.log('✅ Audio context resumed');
                     }
                     
                     const currentMedia = isVideo ? mediaElement : audioElement;
-                    
-                    // Request wake lock to prevent screen from sleeping
-                    if ('wakeLock' in navigator) {
-                        try {
-                            const wakeLock = await navigator.wakeLock.request('screen');
-                            console.log('Wake lock acquired');
-                        } catch (err) {
-                            console.log('Wake lock error:', err);
-                        }
-                    }
-                    
                     await currentMedia.play();
+                    
                     isPlaying = true;
                     
                     if (analyser) {
-                        console.log('Starting audio analysis...');
                         analyzeAudio();
-                    } else {
-                        showError('Audio analyzer not initialized');
                     }
                     
-                    playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg> Stop';
-                    playingIndicator.classList.remove('hidden');
+                    playBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg> Stop';
+                    playingIndicator.style.display = 'block';
                     hideError();
+                    
+                    showSuccess('▶️ Playing! Vibrations active.');
+                    console.log('✅ Playback started');
                 } catch (err) {
-                    showError('Error playing file: ' + err.message);
-                    console.error('Playback error:', err);
+                    showError('Error: ' + err.message);
+                    console.error('❌ Playback error:', err);
                 }
             }
         });
@@ -424,136 +537,52 @@
             } catch (e) {}
             
             isPlaying = false;
-            playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Play';
-            playingIndicator.classList.add('hidden');
+            playBtn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Play';
+            playingIndicator.style.display = 'none';
+            console.log('⏹️ Playback stopped');
         }
 
         // Fullscreen
-        async function toggleFullscreen() {
-            if (!isFullscreen) {
-                try {
-                    if (document.documentElement.requestFullscreen) {
-                        await document.documentElement.requestFullscreen();
-                    } else if (document.documentElement.webkitRequestFullscreen) {
-                        await document.documentElement.webkitRequestFullscreen();
-                    }
-                    
+        fullscreenToggle.addEventListener('click', async () => {
+            try {
+                if (!document.fullscreenElement) {
+                    await document.documentElement.requestFullscreen();
                     if (screen.orientation && screen.orientation.lock) {
                         try {
                             await screen.orientation.lock('landscape');
-                        } catch (e) {
-                            console.log('Orientation lock not supported');
-                        }
+                        } catch (e) {}
                     }
-                    
                     videoContainer.classList.add('fullscreen');
-                    mainContainer.classList.add('hidden');
-                    videoControls.classList.add('active');
-                    isFullscreen = true;
-                } catch (err) {
-                    console.error('Fullscreen error:', err);
-                }
-            } else {
-                try {
-                    if (document.exitFullscreen) {
-                        await document.exitFullscreen();
-                    } else if (document.webkitExitFullscreen) {
-                        await document.webkitExitFullscreen();
-                    }
-                    
-                    if (screen.orientation && screen.orientation.unlock) {
-                        screen.orientation.unlock();
-                    }
-                    
+                } else {
+                    await document.exitFullscreen();
                     videoContainer.classList.remove('fullscreen');
-                    mainContainer.classList.remove('hidden');
-                    videoControls.classList.remove('active');
-                    isFullscreen = false;
-                } catch (err) {
-                    console.error('Exit fullscreen error:', err);
                 }
-            }
-        }
-
-        fullscreenToggle.addEventListener('click', toggleFullscreen);
-        fullscreenBtn.addEventListener('click', toggleFullscreen);
-
-        // Fullscreen change events
-        document.addEventListener('fullscreenchange', () => {
-            const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            if (!isCurrentlyFullscreen && isFullscreen) {
-                videoContainer.classList.remove('fullscreen');
-                mainContainer.classList.remove('hidden');
-                videoControls.classList.remove('active');
-                isFullscreen = false;
+            } catch (err) {
+                console.error('Fullscreen error:', err);
             }
         });
 
-        document.addEventListener('webkitfullscreenchange', () => {
-            const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
-            if (!isCurrentlyFullscreen && isFullscreen) {
-                videoContainer.classList.remove('fullscreen');
-                mainContainer.classList.remove('hidden');
-                videoControls.classList.remove('active');
-                isFullscreen = false;
-            }
-        });
-
-        // Video controls
-        playPauseBtn.addEventListener('click', async () => {
-            testVibration();
-            
-            if (isPlaying) {
-                stopPlayback();
-            } else {
-                try {
-                    if (!audioContext) {
-                        initAudioContext();
-                    }
-                    
-                    if (audioContext && audioContext.state === 'suspended') {
-                        await audioContext.resume();
-                    }
-                    
-                    await mediaElement.play();
-                    isPlaying = true;
-                    
-                    if (analyser) {
-                        analyzeAudio();
-                    }
-                    
-                    playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg> Stop';
-                } catch (err) {
-                    showError('Error: ' + err.message);
-                }
-            }
-        });
-
-        // Progress bar
-        progressBar.addEventListener('click', (e) => {
-            const rect = progressBar.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            mediaElement.currentTime = pos * mediaElement.duration;
-        });
-
-        // Update progress
-        setInterval(() => {
-            const currentMedia = isVideo ? mediaElement : audioElement;
-            if (currentMedia && currentMedia.duration) {
-                const progress = (currentMedia.currentTime / currentMedia.duration) * 100;
-                progressFilled.style.width = progress + '%';
-            }
-        }, 100);
-
-        // Error handling
+        // Error/Success handling
         function showError(message) {
             errorBox.textContent = message;
-            errorBox.classList.remove('hidden');
+            errorBox.style.display = 'block';
+            successBox.style.display = 'none';
         }
 
         function hideError() {
-            errorBox.classList.add('hidden');
+            errorBox.style.display = 'none';
         }
+
+        function showSuccess(message) {
+            successBox.textContent = message;
+            successBox.style.display = 'block';
+            errorBox.style.display = 'none';
+            setTimeout(() => {
+                successBox.style.display = 'none';
+            }, 3000);
+        }
+
+        console.log('🚀 App loaded. Vibration supported:', vibrationSupported);
     </script>
 </body>
 </html>
