@@ -277,36 +277,75 @@
             }
         }
 
+        // Test vibration on first interaction
+        let vibrationTested = false;
+        function testVibration() {
+            if (!vibrationTested) {
+                try {
+                    navigator.vibrate(50);
+                    vibrationTested = true;
+                    console.log('Vibration test successful');
+                } catch (e) {
+                    console.error('Vibration test failed:', e);
+                    showError('Vibration not working. Check phone settings.');
+                }
+            }
+        }
+
         // Analyze audio and vibrate
         function analyzeAudio() {
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
+            let lastVibrationTime = 0;
             
             function analyze() {
                 if (!isPlaying) return;
                 
                 analyser.getByteFrequencyData(dataArray);
                 
+                // Calculate volume across frequency ranges
+                let total = 0;
                 let bassSum = 0;
                 let midSum = 0;
                 
-                for (let i = 0; i < 32; i++) {
+                // Bass frequencies (most impactful for vibration)
+                for (let i = 0; i < 40; i++) {
                     bassSum += dataArray[i];
                 }
-                for (let i = 32; i < 96; i++) {
+                
+                // Mid frequencies
+                for (let i = 40; i < 120; i++) {
                     midSum += dataArray[i];
                 }
                 
-                const bassAvg = bassSum / 32;
-                const midAvg = midSum / 64;
-                const combined = (bassAvg * 0.7 + midAvg * 0.3);
+                for (let i = 0; i < bufferLength; i++) {
+                    total += dataArray[i];
+                }
                 
-                const threshold = (100 - sensitivity) * 1.5;
+                const bassAvg = bassSum / 40;
+                const midAvg = midSum / 80;
+                const overallAvg = total / bufferLength;
                 
-                if (combined > threshold) {
-                    const intensity = Math.max(10, Math.min(Math.floor((combined / 255) * 200), 200));
+                // Weighted combination favoring bass
+                const combined = (bassAvg * 0.6 + midAvg * 0.3 + overallAvg * 0.1);
+                
+                // Dynamic threshold based on sensitivity
+                const threshold = (100 - sensitivity) * 1.2;
+                
+                const now = Date.now();
+                
+                // Vibrate if above threshold and enough time has passed (prevent too frequent vibrations)
+                if (combined > threshold && (now - lastVibrationTime) > 50) {
+                    // Map to vibration duration (20-150ms for better feel)
+                    const intensity = Math.max(20, Math.min(Math.floor((combined / 255) * 150), 150));
+                    
                     try {
-                        navigator.vibrate(intensity);
+                        // Use vibration pattern for better effect
+                        if (navigator.vibrate) {
+                            navigator.vibrate(intensity);
+                            lastVibrationTime = now;
+                            console.log('Vibrating:', intensity, 'ms at level:', combined.toFixed(1));
+                        }
                     } catch (e) {
                         console.error('Vibration error:', e);
                     }
@@ -325,6 +364,9 @@
                 return;
             }
 
+            // Test vibration on first click
+            testVibration();
+
             if (isPlaying) {
                 stopPlayback();
             } else {
@@ -338,11 +380,25 @@
                     }
                     
                     const currentMedia = isVideo ? mediaElement : audioElement;
+                    
+                    // Request wake lock to prevent screen from sleeping
+                    if ('wakeLock' in navigator) {
+                        try {
+                            const wakeLock = await navigator.wakeLock.request('screen');
+                            console.log('Wake lock acquired');
+                        } catch (err) {
+                            console.log('Wake lock error:', err);
+                        }
+                    }
+                    
                     await currentMedia.play();
                     isPlaying = true;
                     
                     if (analyser) {
+                        console.log('Starting audio analysis...');
                         analyzeAudio();
+                    } else {
+                        showError('Audio analyzer not initialized');
                     }
                     
                     playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg> Stop';
@@ -445,15 +501,31 @@
 
         // Video controls
         playPauseBtn.addEventListener('click', async () => {
+            testVibration();
+            
             if (isPlaying) {
                 stopPlayback();
             } else {
-                if (!audioContext) {
-                    initAudioContext();
+                try {
+                    if (!audioContext) {
+                        initAudioContext();
+                    }
+                    
+                    if (audioContext && audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                    }
+                    
+                    await mediaElement.play();
+                    isPlaying = true;
+                    
+                    if (analyser) {
+                        analyzeAudio();
+                    }
+                    
+                    playBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="4" height="16" x="6" y="4"/><rect width="4" height="16" x="14" y="4"/></svg> Stop';
+                } catch (err) {
+                    showError('Error: ' + err.message);
                 }
-                await mediaElement.play();
-                isPlaying = true;
-                analyzeAudio();
             }
         });
 
